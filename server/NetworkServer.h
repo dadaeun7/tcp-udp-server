@@ -11,7 +11,7 @@ private:
 
 public:
     NetworkServer() = default;
-    ~NetworkServer();
+    ~NetworkServer() = default;
 
     bool Init(uint16_t port);
     void Run();

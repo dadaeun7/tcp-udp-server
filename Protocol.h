@@ -1,6 +1,9 @@
 #pragma once
 #include <stdint.h>
 
+#define TCP_PORT 9000
+#define UDP_PORT 9001
+
 #pragma pack(push, 1)
 enum class PacketType : uint16_t
 {

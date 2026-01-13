@@ -141,6 +141,18 @@ void NetworkServer::HandleReceive(int index)
     std::string receivedMsg = reader.ReadString(msgLen);
 
     std::cout << "Player: " << playerId << ": " << receivedMsg << std::endl;
+
+    std::vector<char> fullPacket;
+    fullPacket.reserve(header.size);
+
+    char *hPtr = reinterpret_cast<char *>(&header);
+    fullPacket.insert(fullPacket.end(), hPtr, hPtr + sizeof(PacketHeader));
+
+    fullPacket.insert(fullPacket.end(), payload.begin(), payload.end());
+
+    std::cout << "fullPacket.size(): " << fullPacket.size() << std::endl;
+
+    Broadcast(fullPacket.data(), (int)fullPacket.size(), index);
 }
 
 void NetworkServer::SendChat(int index, int32_t id, const std::string &msg)
