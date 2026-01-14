@@ -118,6 +118,19 @@ void NetworkServer::HandleAccept()
         }
     }
 }
+ 
+void ReceiveLog(std::vector<char> payload, SOCKET sessionSock, PacketType type){
+    recv(sessionSock, payload.data(), payload.size(), 0);
+
+    PacketReader reader(payload.data());
+
+    int32_t playerId = reader.Read<int32_t>();
+    int msgLen = payload.size() - sizeof(int32_t);
+    std::string receivedMsg = reader.ReadString(msgLen);
+
+
+    std::cout << "[" << PacketEnumToString(type) <<"] Player: " << playerId << ": " << receivedMsg << std::endl;
+}
 
 void NetworkServer::HandleReceive(int index)
 {
@@ -132,46 +145,19 @@ void NetworkServer::HandleReceive(int index)
 
     int payloadSize = header.size - sizeof(PacketHeader);
     std::vector<char> payload(payloadSize);
-    recv(_sessions[index]->socket, payload.data(), payloadSize, 0);
 
-    PacketReader reader(payload.data());
+    /* server log 기록 */
+    ReceiveLog(payload, _sessions[index]->socket, header.type);    
 
-    int32_t playerId = reader.Read<int32_t>();
-    int msgLen = payloadSize - sizeof(int32_t);
-    std::string receivedMsg = reader.ReadString(msgLen);
-
-    std::cout << "Player: " << playerId << ": " << receivedMsg << std::endl;
-
+    /* server -> client 로 패킷 재조립하여 broadcast */
     std::vector<char> fullPacket;
     fullPacket.reserve(header.size);
 
     char *hPtr = reinterpret_cast<char *>(&header);
     fullPacket.insert(fullPacket.end(), hPtr, hPtr + sizeof(PacketHeader));
-
     fullPacket.insert(fullPacket.end(), payload.begin(), payload.end());
 
-    std::cout << "fullPacket.size(): " << fullPacket.size() << std::endl;
-
     Broadcast(fullPacket.data(), (int)fullPacket.size(), index);
-}
-
-void NetworkServer::SendChat(int index, int32_t id, const std::string &msg)
-{
-
-    uint16_t msgLen = static_cast<uint16_t>(msg.length());
-    uint16_t totalSize = sizeof(PacketHeader) + sizeof(int32_t) + msgLen;
-
-    std::vector<char> buffer(totalSize);
-
-    PacketWriter writer(buffer.data());
-
-    PacketHeader h = {totalSize, PacketType::CHAT};
-
-    writer.Write<PacketHeader>(h);
-    writer.Write<int32_t>(id);
-    writer.WriteString(msg);
-
-    send(_sessions[index]->socket, buffer.data(), totalSize, 0);
 }
 
 void NetworkServer::HandleClose(int index)

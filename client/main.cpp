@@ -9,7 +9,7 @@ void ClientRun(SOCKET serverSocket, WSAEVENT hEvent)
 {
     while (true)
     {
-        DWORD index = WSAWaitForMultipleEvents(1, &hEvent, FALSE, WSA_INFINITE, FALSE);
+        WSAWaitForMultipleEvents(1, &hEvent, FALSE, WSA_INFINITE, FALSE);
 
         WSANETWORKEVENTS netEvs;
         WSAEnumNetworkEvents(serverSocket, hEvent, &netEvs);
@@ -46,9 +46,50 @@ void ClientRun(SOCKET serverSocket, WSAEVENT hEvent)
         }
     }
 }
+
+void SendSocket(SOCKET serverSocket, std::vector<char>& buffer){
+    send(serverSocket, buffer.data(),(int)buffer.size(), 0);
+}
+void ClientSend(SOCKET serverSocket, int32_t playerId, std::string& msg){
+    std::vector<char> buffer;
+
+    uint16_t totalSize = sizeof(PacketHeader) + sizeof(int32_t) + msg.length();
+    PacketWriter write(buffer.data());
+    write.Write<PacketHeader>({totalSize, PacketType::CHAT});
+    write.Write<int32_t>(playerId);
+    write.WriteString(msg);
+
+    SendSocket(serverSocket, buffer);
+}
+
+void ClientExit(SOCKET serverSocket, int32_t playerId)
+{
+    std::vector<char> buffer;
+    PacketWriter write(buffer.data());
+
+    uint16_t totalSize = sizeof(PacketHeader) + sizeof(int32_t);
+
+
+    write.Write<PacketHeader>({totalSize, PacketType::CHATEXIT});
+    write.Write(playerId);
+
+    SendSocket(serverSocket, buffer);
+}
+
+void ClientIn(SOCKET serverSocket, int32_t playerId)
+{
+    std::vector<char> buffer;
+    uint16_t totalSize = sizeof(PacketHeader) + sizeof(int32_t);
+    
+    PacketWriter write(buffer.data());
+    write.Write<PacketHeader>({totalSize, PacketType::CHATIN});
+    write.Write<int32_t>(playerId);
+
+    SendSocket(serverSocket, buffer);
+}
+
 int main()
 {
-
     SetConsoleOutputCP(CP_UTF8);
     SetConsoleCP(CP_UTF8);
 
@@ -79,6 +120,9 @@ int main()
 
     std::thread recvThread(ClientRun, serverSocket, hEvent);
 
+    /* 입장 Message 발송 */
+    ClientIn(serverSocket, myId);
+
     while (true)
     {
         std::string input;
@@ -86,21 +130,13 @@ int main()
         std::getline(std::cin, input);
 
         if (input == "exit")
+            /* 퇴장 Message 발송 */
+            ClientExit(serverSocket, myId);
             break;
         if (input.empty())
             continue;
-
-        uint16_t msgLen = static_cast<uint16_t>(input.length());
-        uint16_t totalSize = sizeof(PacketHeader) + sizeof(int32_t) + msgLen;
-        std::vector<char> sendBuffer(totalSize);
-
-        PacketWriter writer(sendBuffer.data());
-
-        writer.Write<PacketHeader>({totalSize, PacketType::CHAT});
-        writer.Write<int32_t>(myId);
-        writer.WriteString(input);
-
-        send(serverSocket, sendBuffer.data(), totalSize, 0);
+        /* 일반 채팅 Message 발송 */
+        ClientSend(serverSocket, myId, input);
     }
 
     closesocket(serverSocket);

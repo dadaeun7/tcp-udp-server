@@ -9,8 +9,23 @@ enum class PacketType : uint16_t
 {
     LOGIN = 1,
     CHAT = 2,
-    POSITION = 3
+    CHATIN = 3,
+    CHATEXIT = 4,
+    POSITION = 5
 };
+
+std::string PacketEnumToString(PacketType type){
+
+    switch(type){
+        case PacketType::LOGIN: return "LOGIN";
+        case PacketType::CHAT: return "CHAT";
+        case PacketType::CHATIN: return "CHATIN";
+        case PacketType::CHATEXIT: return "CHATEXIT";
+        case PacketType::POSITION: return "POSITION";
+        dafault: return "UNKNOWN";
+    }
+
+}
 
 struct PacketHeader
 {

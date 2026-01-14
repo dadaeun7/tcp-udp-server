@@ -16,12 +16,14 @@ public:
     bool Init(uint16_t port);
     void Run();
     void Stop();
-    void SendChat(int index, int32_t id, const std::string &msg);
 
 private:
     void HandleAccept();
     void HandleReceive(int index);
     void HandleClose(int index);
+    void ChatUserExit(int index);
+    void ChatUserIn(int index);
+
     void Broadcast(const char *data, int size, int exceptIndex);
     bool InitailizeNetwork();
 };
