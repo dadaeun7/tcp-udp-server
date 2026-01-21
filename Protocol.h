@@ -1,5 +1,6 @@
 #pragma once
 #include <stdint.h>
+#include <string>
 
 #define TCP_PORT 9000
 #define UDP_PORT 9001
@@ -14,18 +15,24 @@ enum class PacketType : uint16_t
     POSITION = 5
 };
 
-std::string PacketEnumToString(PacketType type){
+inline std::string PacketEnumToString(PacketType type)
+{
 
-    switch(type){
-        case PacketType::LOGIN: return "LOGIN";
-        case PacketType::CHAT: return "CHAT";
-        case PacketType::CHATIN: return "CHATIN";
-        case PacketType::CHATEXIT: return "CHATEXIT";
-        case PacketType::POSITION: return "POSITION";
-        dafault: return "UNKNOWN";
+    switch (type)
+    {
+    case PacketType::LOGIN:
+        return "LOGIN";
+    case PacketType::CHAT:
+        return "CHAT";
+    case PacketType::CHATIN:
+        return "CHATIN";
+    case PacketType::CHATEXIT:
+        return "CHATEXIT";
+    case PacketType::POSITION:
+        return "POSITION";
     }
-
-}
+    return "UNKNOWN_TYPE(" + std::to_string(static_cast<int>(type)) + ")";
+};
 
 struct PacketHeader
 {

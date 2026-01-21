@@ -20,23 +20,37 @@ void ClientRun(SOCKET serverSocket, WSAEVENT hEvent)
 
             int recvLen = recv(serverSocket, (char *)&header, sizeof(header), 0);
             if (recvLen <= 0)
-                break;
+                return;
 
             int payloadSize = header.size - sizeof(PacketHeader);
-
             if (payloadSize <= 0)
                 return;
 
             std::vector<char> payload(payloadSize);
-            recv(serverSocket, payload.data(), payloadSize, 0);
 
-            PacketReader reader(payload.data());
-            int32_t senderId = reader.Read<int32_t>();
-            int msgLen = payloadSize - sizeof(int32_t);
-            std::string msg = reader.ReadString(msgLen);
+            int totalRecv = 0;
+            while (totalRecv < payloadSize)
+            {
+                int ret = recv(serverSocket, payload.data() + totalRecv, payloadSize - totalRecv, 0);
+                if (ret <= 0)
+                    break;
+                totalRecv += ret;
+            }
 
-            std::cout << "[받은 메시지] 유저아이디: " << senderId << " >> " << msg << std::endl;
-            std::cout << "입력: ";
+            if (totalRecv == payloadSize)
+            {
+                PacketReader reader(payload.data());
+                if (payloadSize >= sizeof(int32_t))
+                {
+
+                    int32_t senderId = reader.Read<int32_t>();
+                    int msgLen = payloadSize - sizeof(int32_t);
+                    std::string msg = reader.ReadString(msgLen);
+
+                    std::cout << "[받은 메시지] 유저아이디: " << senderId << " >> " << msg << std::endl;
+                    std::cout << "입력: " << std::flush;
+                }
+            }
         }
 
         if (netEvs.lNetworkEvents & FD_CLOSE)
@@ -47,13 +61,16 @@ void ClientRun(SOCKET serverSocket, WSAEVENT hEvent)
     }
 }
 
-void SendSocket(SOCKET serverSocket, std::vector<char>& buffer){
-    send(serverSocket, buffer.data(),(int)buffer.size(), 0);
+void SendSocket(SOCKET serverSocket, std::vector<char> &buffer)
+{
+    send(serverSocket, buffer.data(), (int)buffer.size(), 0);
 }
-void ClientSend(SOCKET serverSocket, int32_t playerId, std::string& msg){
-    std::vector<char> buffer;
 
+void ClientSend(SOCKET serverSocket, int32_t playerId, std::string &msg)
+{
     uint16_t totalSize = sizeof(PacketHeader) + sizeof(int32_t) + msg.length();
+    std::vector<char> buffer(totalSize);
+
     PacketWriter write(buffer.data());
     write.Write<PacketHeader>({totalSize, PacketType::CHAT});
     write.Write<int32_t>(playerId);
@@ -64,27 +81,30 @@ void ClientSend(SOCKET serverSocket, int32_t playerId, std::string& msg){
 
 void ClientExit(SOCKET serverSocket, int32_t playerId)
 {
-    std::vector<char> buffer;
+    std::string msg = playerId + "님이 퇴장했습니다";
+
+    uint16_t totalSize = sizeof(PacketHeader) + sizeof(int32_t) + (uint16_t)msg.length();
+    std::vector<char> buffer(totalSize);
+
     PacketWriter write(buffer.data());
-
-    uint16_t totalSize = sizeof(PacketHeader) + sizeof(int32_t);
-
 
     write.Write<PacketHeader>({totalSize, PacketType::CHATEXIT});
     write.Write(playerId);
+    write.WriteString(msg);
 
     SendSocket(serverSocket, buffer);
 }
 
 void ClientIn(SOCKET serverSocket, int32_t playerId)
 {
-    std::vector<char> buffer;
-    uint16_t totalSize = sizeof(PacketHeader) + sizeof(int32_t);
-    
+    std::string msg = "님이 입장했습니다";
+    uint16_t totalSize = sizeof(PacketHeader) + sizeof(int32_t) + (uint16_t)msg.length();
+    std::vector<char> buffer(totalSize);
+
     PacketWriter write(buffer.data());
     write.Write<PacketHeader>({totalSize, PacketType::CHATIN});
     write.Write<int32_t>(playerId);
-
+    write.WriteString(msg);
     SendSocket(serverSocket, buffer);
 }
 
@@ -130,9 +150,12 @@ int main()
         std::getline(std::cin, input);
 
         if (input == "exit")
+        {
             /* 퇴장 Message 발송 */
             ClientExit(serverSocket, myId);
             break;
+        }
+
         if (input.empty())
             continue;
         /* 일반 채팅 Message 발송 */

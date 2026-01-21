@@ -118,18 +118,10 @@ void NetworkServer::HandleAccept()
         }
     }
 }
- 
-void ReceiveLog(std::vector<char> payload, SOCKET sessionSock, PacketType type){
-    recv(sessionSock, payload.data(), payload.size(), 0);
 
-    PacketReader reader(payload.data());
-
-    int32_t playerId = reader.Read<int32_t>();
-    int msgLen = payload.size() - sizeof(int32_t);
-    std::string receivedMsg = reader.ReadString(msgLen);
-
-
-    std::cout << "[" << PacketEnumToString(type) <<"] Player: " << playerId << ": " << receivedMsg << std::endl;
+void ReceiveLog(int32_t playerId, std::string receivedMsg, PacketType type)
+{
+    std::cout << "[LOG" << PacketEnumToString(type) << "] Player: " << playerId << ": " << receivedMsg << std::endl;
 }
 
 void NetworkServer::HandleReceive(int index)
@@ -145,17 +137,22 @@ void NetworkServer::HandleReceive(int index)
 
     int payloadSize = header.size - sizeof(PacketHeader);
     std::vector<char> payload(payloadSize);
+    recv(_sessions[index]->socket, payload.data(), payloadSize, 0);
+
+    PacketReader reader(payload.data());
+    int32_t playerId = reader.Read<int32_t>();
+    int msgLen = payload.size() - sizeof(int32_t);
+    std::string receivedMsg = reader.ReadString(msgLen);
 
     /* server log 기록 */
-    ReceiveLog(payload, _sessions[index]->socket, header.type);    
+    ReceiveLog(playerId, receivedMsg, header.type);
 
-    /* server -> client 로 패킷 재조립하여 broadcast */
-    std::vector<char> fullPacket;
-    fullPacket.reserve(header.size);
+    std::vector<char> fullPacket(header.size);
 
-    char *hPtr = reinterpret_cast<char *>(&header);
-    fullPacket.insert(fullPacket.end(), hPtr, hPtr + sizeof(PacketHeader));
-    fullPacket.insert(fullPacket.end(), payload.begin(), payload.end());
+    PacketWriter writer(fullPacket.data());
+    writer.Write<PacketHeader>(header);
+    writer.Write<int32_t>(playerId);
+    writer.WriteString(receivedMsg);
 
     Broadcast(fullPacket.data(), (int)fullPacket.size(), index);
 }
@@ -172,12 +169,15 @@ void NetworkServer::HandleClose(int index)
 
 void NetworkServer::Broadcast(const char *data, int size, int exceptIndex)
 {
+    std::cout << "size: " << size << std::endl;
+
     for (size_t i = 1; i < _sessions.size(); ++i)
     {
         if (i == (size_t)exceptIndex)
             continue;
 
-        if (send(_sessions[i]->socket, data, size, 0) == SOCKET_ERROR)
+        int sent = send(_sessions[i]->socket, data, size, 0);
+        if (sent == SOCKET_ERROR)
         {
             int err = WSAGetLastError();
             if (err != WSAEWOULDBLOCK)
